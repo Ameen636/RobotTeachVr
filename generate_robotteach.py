@@ -385,7 +385,143 @@ box(z4,"MultimeterScreen",M_DARK,[12.4,0.985,6.0],[0.14,0.015,0.08])
 cyl(z4,"Probe_Red",M_RED,[12.0,0.93,6.2],size=[0.03,0.15,0.03],rot=euler_to_quat(0,0,80))
 cyl(z4,"Probe_Black",M_RUBBER,[12.1,0.93,6.25],size=[0.03,0.15,0.03],rot=euler_to_quat(0,0,80))
 
-print(f"nodes={len(nodes)} meshes={len(meshes)} mats={len(materials)}")
+M_BEIGE = add_mat("PanelBeige", [0.82,0.76,0.66,1.0], 0.0, 0.6)
+M_FLOORTINT = add_mat("FloorTint", [0.58,0.58,0.60,1.0], 0.0, 0.9)
+M_STRIPE = M_RUBBER  # black stripes reuse rubber
+
+def ao_skirt(parent, name, x, z, w, d):
+    box(parent, name+"_AO", M_DARK, [x,0.012,z], [w+0.3,0.025,d+0.3])
+
+def hazard_strip(parent, name, x, z, n=6, along_x=True):
+    for i in range(n):
+        mat = M_YELLOW if i%2==0 else M_STRIPE
+        off = (i-n/2)*0.32
+        if along_x: plane(parent, f"{name}_{i}", mat, [x+off,0.015,z], [0.3,0.6])
+        else: plane(parent, f"{name}_{i}", mat, [x,0.015,z+off], [0.6,0.3])
+
+def totem(parent, name, mat, x, z):
+    box(parent, name+"_Pole", M_DSTEEL, [x,1.0,z], [0.12,2.0,0.12])
+    box(parent, name+"_Head", mat, [x,2.1,z], [0.7,0.5,0.15])
+    box(parent, name+"_Glow", M_LED, [x,2.1,z+0.09], [0.6,0.4,0.02])
+
+def npc(parent, name, vest_mat, x, z, ry=0):
+    g = add_node(name, parent, t=[x,0,z], r=euler_to_quat(0,ry,0))
+    cyl(g, name+"_Legs", M_DSTEEL, [0,0.4,0], size=[0.32,0.8,0.32])
+    cyl(g, name+"_Body", vest_mat, [0,1.0,0], size=[0.38,0.6,0.24])
+    cyl(g, name+"_Head", M_BEIGE, [0,1.5,0], size=[0.22,0.25,0.22])
+    return g
+
+def waypoint(parent, name, x, z):
+    cyl(parent, name, M_YELLOW, [x,0.03,z], size=[0.3,0.04,0.3], geom="CYL12")
+
+def spawn_pt(parent, name, x, y, z):
+    return add_node(name, parent, t=[x,y,z])
+
+def control_post(parent, prefix, x, z, ry=0):
+    g = add_node(prefix+"_ControlPost", parent, t=[x,0,z], r=euler_to_quat(0,ry,0))
+    box(g, prefix+"_Desk", M_BEIGE, [0,0.75,0], [1.4,0.08,0.7])
+    for lx,lz in [(-0.6,-0.28),(0.6,-0.28),(-0.6,0.28),(0.6,0.28)]:
+        box(g, prefix+f"_Leg_{lx}_{lz}", M_DSTEEL, [lx,0.37,lz], [0.07,0.75,0.07])
+    box(g, prefix+"_Screen", M_DARK, [0,1.25,-0.15], [0.9,0.55,0.06])
+    box(g, prefix+"_ScreenGlow", M_HOLO, [0,1.25,-0.11], [0.8,0.45,0.02])
+    box(g, prefix+"_BtnPanel", M_BEIGE, [0,0.85,0.15], [0.7,0.06,0.25])
+    cyl(g, prefix+"_BtnG", M_GREEN, [-0.2,0.9,0.15], size=[0.07,0.05,0.07])
+    cyl(g, prefix+"_BtnB", M_BLUE, [0,0.9,0.15], size=[0.07,0.05,0.07])
+    cyl(g, prefix+"_BtnR", M_RED, [0.2,0.9,0.15], size=[0.09,0.06,0.09])
+    box(g, prefix+"_Mast", M_DSTEEL, [0.6,1.2,0], [0.06,1.0,0.06])
+    cyl(g, prefix+"_LampR", M_RED, [0.6,1.75,0], size=[0.12,0.12,0.12])
+    cyl(g, prefix+"_LampG", M_GREEN, [0.6,1.6,0], size=[0.12,0.12,0.12])
+    return g
+
+# ---- Building dressing: baseboards, trays, pipes, dock stripes ----
+for (wx,wz,w,d) in [(0,-14.8,40,0.25),(0,14.8,40,0.25),(19.8,0,0.25,30)]:
+    box(bld, f"Baseboard_{wx}_{wz}", M_DSTEEL, [wx,0.12,wz], [w if w>1 else 0.25,0.25,d if d>1 else 0.25])
+box(bld, "CableTray_Main", M_DSTEEL, [0,5.2,-5], [38,0.12,0.5])
+cyl(bld, "Pipe_Orange", M_ORANGE, [0,5.0,6], size=[0.18,38,0.18], rot=euler_to_quat(0,0,90))
+cyl(bld, "Pipe_Gray", M_ASTEEL, [0,4.8,6.4], size=[0.12,38,0.12], rot=euler_to_quat(0,0,90))
+hazard_strip(bld, "DockStripes", -18.0, 0, n=12, along_x=False)
+# zone floor tints (subtle darker insets)
+box(z1, "FloorTint_Z1", M_FLOORTINT, [-12,0.005,-8], [13.6,0.012,10.6])
+box(z2, "FloorTint_Z2", M_FLOORTINT, [12,0.005,-8], [13.6,0.012,10.6])
+# columns bolts
+for cx in [-15,-5,5,15]:
+    for cz in [-10,10]:
+        for ox,oz in [(-0.15,-0.15),(0.15,-0.15),(-0.15,0.15),(0.15,0.15)]:
+            cyl(bld, f"Bolt_{cx}_{cz}_{ox}_{oz}", M_RUBBER, [cx+ox,0.03,cz+oz], size=[0.06,0.05,0.06], geom="CYL8")
+# extinguisher + barrels
+cyl(bld, "Extinguisher", M_RED, [4.5,0.35,0.5], size=[0.15,0.6,0.15])
+box(bld, "Ext_Hose", M_RUBBER, [4.5,0.6,0.6], [0.05,0.05,0.25])
+cyl(bld, "Barrel_B", M_BLUE, [-4.5,0.45,12.5], size=[0.6,0.9,0.6])
+cyl(bld, "Barrel_G", M_GREEN, [-3.7,0.45,12.5], size=[0.6,0.9,0.6])
+
+# ---- Z1 details (Naima: maquette Convoyeur/Bras/BacA/BacB/BacPlein/PosteControle/Palette/AGV/Quai) ----
+control_post(z1, "Z1", -9.0, -4.2, ry=-25)
+ao_skirt(z1, "AO_Conv", -12, -9, 6.2, 1.2)
+ao_skirt(z1, "AO_Robot", -12, -6.2, 1.0, 1.0)
+box(z1, "ConvTrim_Y1", M_YELLOW, [-12,0.9,-9.48], [6.0,0.05,0.06])
+box(z1, "ConvTrim_Y2", M_YELLOW, [-12,0.9,-8.52], [6.0,0.05,0.06])
+spawn_pt(z1, "Spawn_Colis", -15.4, 1.6, -9)
+box(z1, "BinFull_Sensor", M_RED, [-13.5,0.85,-5.15], [0.12,0.08,0.06])
+box(z1, "CableTray_Z1", M_DSTEEL, [-10.5,0.06,-6.5], [3.5,0.08,0.3])
+totem(z1, "Totem_Z1", M_ORANGE, -5.8, -3.2)
+hazard_strip(z1, "GateStrip_Z1", -15.5, -7.2, n=6, along_x=True)
+waypoint(z1, "AGV_WP1_BacPlein", -13.5, -4.5)
+waypoint(z1, "AGV_WP2_Aisle", -15.5, -2.0)
+waypoint(z1, "AGV_WP3_Quai", -18.0, 0.5)
+
+# ---- Z2 details (Chaima: Convoyeur/Camera/Bras/Conformes/Rebuts/PosteInspection/Auditeur) ----
+z2arm = add_node("RebutArm_Base", z2, t=[14.6,0,-9])
+cyl(z2arm, "RebutArm_Foot", M_WHITE, [0,0.15,0], size=[0.5,0.3,0.5])
+box(z2arm, "RebutArm_Col", M_WHITE, [0,0.6,0], [0.25,0.6,0.25])
+box(z2arm, "RebutArm_Arm", M_WHITE, [-0.4,1.0,0], [0.9,0.16,0.16], rot=euler_to_quat(0,0,-20))
+box(z2arm, "RebutArm_Grip", M_DSTEEL, [-0.8,0.85,0], [0.15,0.2,0.2])
+control_post(z2, "Z2_Inspect", 12.0, -4.0, ry=180)
+cyl(z2, "RingLight", M_LED, [12,1.92,-9], size=[0.3,0.06,0.3])
+ao_skirt(z2, "AO_InspectConv", 12, -9, 5.2, 1.1)
+box(z2, "ConvTrimW_Y1", M_WHITE, [12,0.9,-9.42], [5.0,0.05,0.05])
+spawn_pt(z2, "Spawn_Piece", 9.8, 1.1, -9)
+npc(z2, "Auditeur_NPC", M_BLUE, 11.0, -3.0, ry=180)
+waypoint(z2, "Audit_WP1_Poste", 11.5, -4.2)
+waypoint(z2, "Audit_WP2_Aisle", 12.0, -6.5)
+waypoint(z2, "Audit_WP3_Bacs", 12.0, -5.0)
+totem(z2, "Totem_Z2", M_BLUE, 5.8, -3.2)
+box(z2, "CableTray_Z2", M_DSTEEL, [12,0.06,-7.0], [0.3,0.08,3.5])
+
+# ---- Z3 details (Ameen: Magasin/Plateau/Bras+Securite/PosteAssemblage/PosteControle/Operateur) ----
+box(z3, "AssemblyPost_Top", M_GREEN, [-11,0.82,6.5], [1.8,0.06,1.0])
+for lx,lz in [(-11.8,6.1),(-10.2,6.1),(-11.8,6.9),(-10.2,6.9)]:
+    box(z3, f"AsmLeg_{lx}_{lz}", M_DSTEEL, [lx,0.4,lz], [0.08,0.8,0.08])
+box(z3, "AssemblyMat", M_GREEN, [-11,0.87,6.5], [1.5,0.02,0.8])
+control_post(z3, "Z3_Supervision", -11, 12.3, ry=180)
+ao_skirt(z3, "AO_AsmRobot", -13, 8, 1.4, 1.4)
+spawn_pt(z3, "Spawn_Kit", -14.5, 0.6, 9.5)
+spawn_pt(z3, "Spawn_Device", -9.5, 1.0, 7.0)
+npc(z3, "Operateur_NPC", M_GREEN, -14.5, 11.5, ry=0)
+waypoint(z3, "Op_WP1_Magasin", -14.5, 10.5)
+waypoint(z3, "Op_WP2_Gate", -12, 11.6)
+waypoint(z3, "Op_WP3_Plateau", -11, 10.0)
+totem(z3, "Totem_Z3", M_GREEN, -5.8, 12.5)
+hazard_strip(z3, "GateStrip_Z3", -12, 11.0, n=6, along_x=True)
+box(z3, "SafetyCurtain_Emitter", M_RED, [-8.5,1.2,8], [0.1,0.3,0.1])
+box(z3, "SafetyCurtain_Recv", M_GREEN, [-8.5,1.2,10], [0.1,0.3,0.1])
+
+# ---- Z4 details (Jihed: Convoyeur/Moteur/Capteur1-2/Armoire+Fusibles/Magasin/Multimetre/Technicien) ----
+for (px,py,pz) in [(12,0.78,9.6),(11.0,1.36,8.6),(13.0,1.36,9.4),(14.5,0.78,11.1)]:
+    cyl(z4, f"TestPoint_{px}_{pz}", M_BLUE, [px,py,pz], size=[0.06,0.04,0.06])
+box(z4, "PowerCutoff_Box", M_RED, [13.8,1.2,11.3], [0.25,0.35,0.12])
+box(z4, "PowerCutoff_Lever", M_DSTEEL, [13.8,1.2,11.2], [0.05,0.2,0.08])
+box(z4, "FaultTag_Capteur2", M_RED, [13.0,1.5,9.4], [0.2,0.05,0.2])
+ao_skirt(z4, "AO_TestConv", 12, 9, 4.2, 1.0)
+box(z4, "CableTray_Z4", M_DSTEEL, [13.2,0.06,10.2], [2.5,0.08,0.3])
+spawn_pt(z4, "Spawn_Spare", 11.0, 0.7, 11.0)
+npc(z4, "Technicien_NPC", M_YELLOW, 12.5, 4.5, ry=180)
+waypoint(z4, "Tech_WP1_Patrol", 11.0, 5.0)
+waypoint(z4, "Tech_WP2_Conv", 12.0, 7.5)
+waypoint(z4, "Tech_WP3_Magasin", 11.0, 10.2)
+totem(z4, "Totem_Z4", M_YELLOW, 5.8, 12.5)
+cyl(bld, "Extinguisher_Z4", M_RED, [16.5,0.35,5.0], size=[0.15,0.6,0.15])
+
+print(f"V2 nodes={len(nodes)} meshes={len(meshes)} mats={len(materials)}")
 
 # ---------------- build GLB ----------------
 bin_chunks=[]
