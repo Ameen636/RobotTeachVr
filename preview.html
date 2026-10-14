@@ -1,12 +1,17 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>RoboTeach VR Preview</title>
-<style>html,body{margin:0;height:100%;background:#14171c;color:#eee;font-family:system-ui} #app{position:fixed;inset:0} .hud{position:fixed;top:12px;left:12px;background:#000c;padding:10px 12px;border-radius:10px;font-size:13px;max-width:340px;pointer-events:none} .hud button{margin:2px;padding:4px 8px;border-radius:6px;border:0;cursor:pointer;pointer-events:auto} canvas{display:block} #log{white-space:pre-wrap;font-size:12px;color:#9fd;max-height:140px;overflow:auto;margin-top:6px;pointer-events:auto}</style>
+<style>html,body{margin:0;height:100%;background:#14171c;color:#eee;font-family:system-ui} #app{position:fixed;inset:0} .hud{position:fixed;top:12px;left:12px;background:#000d;padding:12px;border-radius:12px;font-size:13px;width:300px;pointer-events:none} .hud h1{font-size:14px;margin:0 0 8px} .zone{display:block;width:100%;text-align:left;margin:4px 0;padding:8px 10px;border-radius:8px;border:1px solid #333;background:#1c2128;color:#fff;cursor:pointer;pointer-events:auto} .zone:hover{background:#2a323c} .zone.active{border-color:#ffb300;background:#2b250f} .zone b{display:block;font-size:13px} .zone span{font-size:11px;color:#aeb9c5} .zone i{font-style:normal;float:right;color:#ffb300;font-size:11px} canvas{display:block} #info{font-size:11px;color:#9fd;margin-top:8px} #log{white-space:pre-wrap;font-size:10px;color:#678;max-height:80px;overflow:auto;margin-top:4px;pointer-events:auto} .row{display:flex;gap:4px} .row .zone{flex:1}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head><body><div id="app"></div>
-<div class="hud"><b>RoboTeach VR — 40×30m</b><br>
-<button data-z="all">All</button><button data-z="CentralHub">Hub</button><button data-z="Zone1_Warehouse_Naima">Z1</button><button data-z="Zone2_VisionQC_Chaima">Z2</button><button data-z="Zone3_Assembly_Ameen">Z3</button><button data-z="Zone4_Diagnosis_Jihed">Z4</button>
-<div id="info">left-drag=orbit | wheel=zoom | right-drag=pan | WASD=fly</div><div id="log"></div></div>
+<div class="hud"><h1>RoboTeach VR — choose a zone</h1>
+<button class="zone" data-z="all"><i>0</i><b>Overview</b><span>40×30m facility</span></button>
+<button class="zone" data-z="hub"><i>1</i><b>Central Hub</b><span>menu kiosk + spawn</span></button>
+<button class="zone" data-z="z1"><i>2</i><b>Z1 · Smart Warehouse</b><span>Naima — sorting robot + AGV</span></button>
+<button class="zone" data-z="z2"><i>3</i><b>Z2 · Vision QC</b><span>Chaima — camera + auditor</span></button>
+<button class="zone" data-z="z3"><i>4</i><b>Z3 · Assembly Cell</b><span>Ameen — robot + operator</span></button>
+<button class="zone" data-z="z4"><i>5</i><b>Z4 · Diagnosis</b><span>Jihed — cabinet + technician</span></button>
+<div id="info">left-drag=orbit | wheel=zoom | right-drag=pan | WASD=fly | 0-5=zones</div><div id="log"></div></div>
 <script type="module">
 const logEl=document.getElementById('log'), infoEl=document.getElementById('info');
 const log=(m)=>{logEl.textContent+=m+'\n';console.log(m);};
@@ -42,10 +47,32 @@ const sun=new THREE.DirectionalLight(0xffffff,1.6); sun.position.set(12,20,8); s
 sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera,{left:-24,right:24,top:24,bottom:-24,near:1,far:60});
 sun.shadow.camera.updateProjectionMatrix(); scene.add(sun);
-const targets={all:[0,1,0,30],CentralHub:[0,1,0,10],'Zone1_Warehouse_Naima':[-12,1,-8,13],'Zone2_VisionQC_Chaima':[12,1,-8,13],'Zone3_Assembly_Ameen':[-12,1,8,13],'Zone4_Diagnosis_Jihed':[12,1,8,13]};
-document.querySelectorAll('button').forEach(b=>b.onclick=()=>{const t=targets[b.dataset.z];controls.target.set(t[0],t[1],t[2]);camera.position.set(t[0]+t[3]*0.6,t[1]+t[3]*0.55,t[2]+t[3]*0.65);});
+const VIEWS={
+ all:{eye:[18,16,22],look:[0,1,0],label:'Overview — 40×30m facility'},
+ hub:{eye:[0,2.4,5.8],look:[0,1.4,0],label:'Central Hub — menu kiosk + spawn'},
+ z1:{eye:[-8.6,1.7,-4.2],look:[-12.5,1.0,-8.8],label:'Z1 Warehouse (Naima) — sorting robot + AGV'},
+ z2:{eye:[12,1.7,-3.4],look:[12,1.2,-9.2],label:'Z2 Vision QC (Chaima) — camera + auditor'},
+ z3:{eye:[-11,1.7,12.8],look:[-12.8,1.1,7.2],label:'Z3 Assembly (Ameen) — robot + operator'},
+ z4:{eye:[11.2,1.7,4.2],look:[13.2,1.0,9.8],label:'Z4 Diagnosis (Jihed) — cabinet + technician'}};
+let tween=null;
+function flyTo(key){
+  const v=VIEWS[key]; if(!v) return;
+  document.querySelectorAll('.zone').forEach(b=>b.classList.toggle('active',b.dataset.z===key));
+  infoEl.textContent=v.label;
+  tween={t:0,fromP:camera.position.clone(),toP:new THREE.Vector3(...v.eye),
+         fromT:controls.target.clone(),toT:new THREE.Vector3(...v.look)};
+  log('flyTo '+key);
+}
+window._go=flyTo;
+document.querySelectorAll('.zone').forEach(b=>b.onclick=()=>flyTo(b.dataset.z));
+addEventListener('keydown',e=>{const m={Digit0:'all',Digit1:'hub',Digit2:'z1',Digit3:'z2',Digit4:'z3',Digit5:'z4'};if(m[e.code])flyTo(m[e.code]);});
+for(const ev of ['pointerdown','wheel']) renderer.domElement.addEventListener(ev,()=>tween=null,{passive:true});
+const _update=controls.update.bind(controls);
+controls.update=function(){if(tween){tween.t+=1/85;const k=tween.t>=1?1:(tween.t<0.5?4*tween.t**3:1-((-2*tween.t+2)**3)/2);
+  camera.position.lerpVectors(tween.fromP,tween.toP,k);controls.target.lerpVectors(tween.fromT,tween.toT,k);
+  if(tween.t>=1)tween=null;}return _update();};
 // explicit fetch check so HTTP errors are visible
-const qp=new URLSearchParams(location.search); const modelFile=qp.get('model')||'./RoboTeachVR.glb';
+const qp=new URLSearchParams(location.search); const modelFile=qp.get('model')||'./RoboTeachVR_v2.glb';
 const url=modelFile+(modelFile.includes('?')?'&':'?')+Date.now();
 log('step 5: fetching '+url);
 fetch(url).then(async r=>{
