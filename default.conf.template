@@ -1,0 +1,49 @@
+# Rendered at container boot by nginx:alpine's 20-envsubst-on-templates.sh
+# (${PORT} is injected by Render; falls back to 10000 for `docker run` without -e).
+server {
+    listen       ${PORT:-10000} default_server;
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html preview.html;
+
+    # Render's health checks + uptime probes
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    # Correct MIME for the GLB scene so three.js GLTFLoader / fetch works
+    types {
+        text/html                             html htm;
+        text/css                              css;
+        application/javascript                js mjs;
+        application/json                      json;
+        image/png                             png;
+        image/jpeg                            jpg jpeg;
+        image/svg+xml                         svg;
+        model/gltf-binary                     glb;
+        model/gltf+json                       gltf;
+    }
+    default_type application/octet-stream;
+
+    # Viewer entry points — never cache the HTML shell so redeploys go live instantly
+    location = /               { expires -1; add_header Cache-Control "no-store"; }
+    location = /index.html    { expires -1; add_header Cache-Control "no-store"; }
+    location = /preview.html  { expires -1; add_header Cache-Control "no-store"; }
+
+    # Heavy binary assets — cache aggressively at the edge/browser
+    location ~* \.(glb|gltf|png|jpg|jpeg|svg|js|css)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Allow three.js module CDN + same-origin GLB fetch; deny dotfiles
+    location ~ /\. { deny all; access_log off; log_not_found off; }
+
+    gzip on;
+    gzip_types text/html text/css application/javascript application/json model/gltf+json image/svg+xml;
+    gzip_min_length 1024;
+}

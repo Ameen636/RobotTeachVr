@@ -1,0 +1,14 @@
+# Keep the Render Docker build context lean: only the viewer + scene assets
+# are COPY'd in the Dockerfile, so exclude everything else.
+node_modules/
+.opencode/
+.git/
+.gitignore
+generate_robotteach.py
+__pycache__/
+*.pyc
+Cahier_des_charges_RoboTeach_VR.pdf
+README_ROBOTEACH.md
+Dockerfile
+.dockerignore
+render.yaml

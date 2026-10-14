@@ -1,0 +1,13 @@
+# Render Blueprint — one-click deploy of the RoboTeachVR static viewer.
+# Usage (dashboard): New → Blueprint → point at the repo containing this file.
+# Usage (CLI): render blueprint launch  (then `render deploy` on pushes).
+services:
+  - type: web
+    name: robotteachvr
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    # Render injects PORT=10000 automatically; the nginx template listens on it.
+    healthCheckPath: /healthz
+    # Static scene — no build step needed; kept explicit so forks don't inherit one.
+    # dockerCommand: ""   # default from image (nginx -g 'daemon off;')

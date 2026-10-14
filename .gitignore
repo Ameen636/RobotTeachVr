@@ -1,0 +1,4 @@
+node_modules/
+.opencode/
+__pycache__/
+*.pyc

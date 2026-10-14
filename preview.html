@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoboTeach VR Preview</title>
+<style>html,body{margin:0;height:100%;background:#14171c;color:#eee;font-family:system-ui} #app{position:fixed;inset:0} .hud{position:fixed;top:12px;left:12px;background:#000c;padding:10px 12px;border-radius:10px;font-size:13px;max-width:340px;pointer-events:none} .hud button{margin:2px;padding:4px 8px;border-radius:6px;border:0;cursor:pointer;pointer-events:auto} canvas{display:block} #log{white-space:pre-wrap;font-size:12px;color:#9fd;max-height:140px;overflow:auto;margin-top:6px;pointer-events:auto}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body><div id="app"></div>
+<div class="hud"><b>RoboTeach VR — 40×30m</b><br>
+<button data-z="all">All</button><button data-z="CentralHub">Hub</button><button data-z="Zone1_Warehouse_Naima">Z1</button><button data-z="Zone2_VisionQC_Chaima">Z2</button><button data-z="Zone3_Assembly_Ameen">Z3</button><button data-z="Zone4_Diagnosis_Jihed">Z4</button>
+<div id="info">left-drag=orbit | wheel=zoom | right-drag=pan | WASD=fly</div><div id="log"></div></div>
+<script type="module">
+const logEl=document.getElementById('log'), infoEl=document.getElementById('info');
+const log=(m)=>{logEl.textContent+=m+'\n';console.log(m);};
+window.addEventListener('error',e=>log('window.onerror: '+(e.message||e.error)));
+log('step 1: importing three…');
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+log('step 2: three '+THREE.REVISION+' loaded');
+const app=document.getElementById('app');
+let renderer;
+try{
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  log('step 3: WebGL renderer OK');
+}catch(err){ infoEl.textContent='WebGL failed: '+err.message; log('WebGL failed: '+err.stack); throw err; }
+renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x14171c);
+scene.add(new THREE.GridHelper(40,40,0x555555,0x333333));
+const testCube=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0xff8800}));
+testCube.position.set(0,0.5,0); scene.add(testCube);
+log('step 4: scene+grid+test-cube added (if you see orange cube, renderer works)');
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,300);
+camera.position.set(18,16,22);
+const controls=new OrbitControls(camera,renderer.domElement); controls.target.set(0,1,0);
+controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.screenSpacePanning=false; controls.minDistance=2; controls.maxDistance=80;
+window._cam=camera; window._ctl=controls;
+scene.add(new THREE.HemisphereLight(0xeaf2ff,0x555555,0.9));
+const sun=new THREE.DirectionalLight(0xffffff,1.6); sun.position.set(12,20,8); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-24,right:24,top:24,bottom:-24,near:1,far:60});
+sun.shadow.camera.updateProjectionMatrix(); scene.add(sun);
+const targets={all:[0,1,0,30],CentralHub:[0,1,0,10],'Zone1_Warehouse_Naima':[-12,1,-8,13],'Zone2_VisionQC_Chaima':[12,1,-8,13],'Zone3_Assembly_Ameen':[-12,1,8,13],'Zone4_Diagnosis_Jihed':[12,1,8,13]};
+document.querySelectorAll('button').forEach(b=>b.onclick=()=>{const t=targets[b.dataset.z];controls.target.set(t[0],t[1],t[2]);camera.position.set(t[0]+t[3]*0.6,t[1]+t[3]*0.55,t[2]+t[3]*0.65);});
+// explicit fetch check so HTTP errors are visible
+const url='./RoboTeachVR.glb?'+Date.now();
+log('step 5: fetching '+url);
+fetch(url).then(async r=>{
+  log('fetch status='+r.status+' type='+r.headers.get('content-type')+' len='+(r.headers.get('content-length')||'?'));
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const buf=await r.arrayBuffer(); log('got '+buf.byteLength+' bytes, parsing…');
+  new GLTFLoader().parse(buf,'',g=>{
+    scene.add(g.scene); scene.remove(testCube);
+    let n=0; g.scene.traverse(o=>{if(o.isMesh){n++;o.castShadow=true;o.receiveShadow=true;}});
+    infoEl.textContent='loaded GLB: '+n+' meshes. drag=orbit wheel=zoom';
+    log('OK: '+n+' meshes added');
+  },e=>{ infoEl.textContent='parse error: '+(e.message||e); log('parse error: '+(e.stack||e)); });
+}).catch(e=>{ infoEl.textContent='fetch failed — open via http://localhost:8000/preview.html (not file://)'; log('fetch error: '+(e.stack||e)); });
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+(function loop(){requestAnimationFrame(loop);controls.update();renderer.render(scene,camera);})();
+// WASD / arrows fly + Q/E up/down
+const keys={}; addEventListener('keydown',e=>keys[e.code]=true); addEventListener('keyup',e=>keys[e.code]=false);
+setInterval(()=>{
+  const sp=keys['ShiftLeft']?10:4, f=new THREE.Vector3(); camera.getWorldDirection(f); f.y=0; f.normalize();
+  const r=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0));
+  const mv=new THREE.Vector3();
+  if(keys['KeyW']||keys['ArrowUp'])mv.add(f); if(keys['KeyS']||keys['ArrowDown'])mv.sub(f);
+  if(keys['KeyD']||keys['ArrowRight'])mv.add(r); if(keys['KeyA']||keys['ArrowLeft'])mv.sub(r);
+  if(keys['KeyE'])mv.y+=1; if(keys['KeyQ'])mv.y-=1;
+  if(mv.lengthSq()>0){mv.normalize().multiplyScalar(sp*0.05);camera.position.add(mv);controls.target.add(mv);}
+},16);
+</script></body></html>
