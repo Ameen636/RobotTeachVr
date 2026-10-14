@@ -1,7 +1,7 @@
 # Rendered at container boot by nginx:alpine's 20-envsubst-on-templates.sh
 # (${PORT} is injected by Render; falls back to 10000 for `docker run` without -e).
 server {
-    listen       ${PORT:-10000} default_server;
+    listen       ${PORT} default_server;
     server_name  _;
 
     root   /usr/share/nginx/html;

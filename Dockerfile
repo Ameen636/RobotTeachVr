@@ -17,6 +17,9 @@ COPY preview_plan.png /usr/share/nginx/html/preview_plan.png
 # so ${PORT} is resolved at container boot (Render injects it).
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
+# Default listen port. Render injects its own $PORT at runtime which
+# overrides this; the ENV guarantees envsubst always has a value locally.
+ENV PORT=10000
 EXPOSE 10000
 
 # Inherited ENTRYPOINT (/docker-entrypoint.sh) + CMD ("nginx -g 'daemon off;'") apply.
