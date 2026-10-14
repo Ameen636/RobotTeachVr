@@ -45,7 +45,8 @@ sun.shadow.camera.updateProjectionMatrix(); scene.add(sun);
 const targets={all:[0,1,0,30],CentralHub:[0,1,0,10],'Zone1_Warehouse_Naima':[-12,1,-8,13],'Zone2_VisionQC_Chaima':[12,1,-8,13],'Zone3_Assembly_Ameen':[-12,1,8,13],'Zone4_Diagnosis_Jihed':[12,1,8,13]};
 document.querySelectorAll('button').forEach(b=>b.onclick=()=>{const t=targets[b.dataset.z];controls.target.set(t[0],t[1],t[2]);camera.position.set(t[0]+t[3]*0.6,t[1]+t[3]*0.55,t[2]+t[3]*0.65);});
 // explicit fetch check so HTTP errors are visible
-const url='./RoboTeachVR.glb?'+Date.now();
+const qp=new URLSearchParams(location.search); const modelFile=qp.get('model')||'./RoboTeachVR_v2.glb';
+const url=modelFile+(modelFile.includes('?')?'&':'?')+Date.now();
 log('step 5: fetching '+url);
 fetch(url).then(async r=>{
   log('fetch status='+r.status+' type='+r.headers.get('content-type')+' len='+(r.headers.get('content-length')||'?'));

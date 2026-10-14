@@ -386,6 +386,7 @@ cyl(z4,"Probe_Red",M_RED,[12.0,0.93,6.2],size=[0.03,0.15,0.03],rot=euler_to_quat
 cyl(z4,"Probe_Black",M_RUBBER,[12.1,0.93,6.25],size=[0.03,0.15,0.03],rot=euler_to_quat(0,0,80))
 
 M_BEIGE = add_mat("PanelBeige", [0.82,0.76,0.66,1.0], 0.0, 0.6)
+M_FLOORTINT = add_mat("FloorTint", [0.58,0.58,0.60,1.0], 0.0, 0.9)
 M_STRIPE = M_RUBBER  # black stripes reuse rubber
 
 def ao_skirt(parent, name, x, z, w, d):
@@ -436,12 +437,12 @@ def control_post(parent, prefix, x, z, ry=0):
 for (wx,wz,w,d) in [(0,-14.8,40,0.25),(0,14.8,40,0.25),(19.8,0,0.25,30)]:
     box(bld, f"Baseboard_{wx}_{wz}", M_DSTEEL, [wx,0.12,wz], [w if w>1 else 0.25,0.25,d if d>1 else 0.25])
 box(bld, "CableTray_Main", M_DSTEEL, [0,5.2,-5], [38,0.12,0.5])
-cyl(bld, "Pipe_Orange", [0,5.0,6], size=[0.18,38,0.18], rot=euler_to_quat(0,0,90))
-cyl(bld, "Pipe_Gray", [0,4.8,6.4], size=[0.12,38,0.12], rot=euler_to_quat(0,0,90))
+cyl(bld, "Pipe_Orange", M_ORANGE, [0,5.0,6], size=[0.18,38,0.18], rot=euler_to_quat(0,0,90))
+cyl(bld, "Pipe_Gray", M_ASTEEL, [0,4.8,6.4], size=[0.12,38,0.12], rot=euler_to_quat(0,0,90))
 hazard_strip(bld, "DockStripes", -18.0, 0, n=12, along_x=False)
 # zone floor tints (subtle darker insets)
-box(z1, "FloorTint_Z1", M_DSTEEL, [-12,0.005,-8], [13.6,0.012,10.6])
-box(z2, "FloorTint_Z2", M_DSTEEL, [12,0.005,-8], [13.6,0.012,10.6])
+box(z1, "FloorTint_Z1", M_FLOORTINT, [-12,0.005,-8], [13.6,0.012,10.6])
+box(z2, "FloorTint_Z2", M_FLOORTINT, [12,0.005,-8], [13.6,0.012,10.6])
 # columns bolts
 for cx in [-15,-5,5,15]:
     for cz in [-10,10]:
@@ -582,7 +583,7 @@ for n in nodes:
     gltf["nodes"].append(o)
 
 import os
-out="/home/ameen/RobotTeachVr/RoboTeachVR.glb"
+out="/home/ameen/RobotTeachVr/RoboTeachVR_v2.glb"
 j=json.dumps(gltf,separators=(",",":")).encode()
 if len(j)%4: j+=b" "*(4-len(j)%4)
 total=12+8+len(j)+8+len(bin_blob)
