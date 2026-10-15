@@ -50,10 +50,10 @@ sun.shadow.camera.updateProjectionMatrix(); scene.add(sun);
 const VIEWS={
  all:{eye:[18,16,22],look:[0,1,0],label:'Overview — 40×30m facility'},
  hub:{eye:[0,2.4,5.8],look:[0,1.4,0],label:'Central Hub — menu kiosk + spawn'},
- z1:{eye:[-8.6,1.7,-4.2],look:[-12.5,1.0,-8.8],label:'Z1 Warehouse (Naima) — sorting robot + AGV'},
- z2:{eye:[12,1.7,-3.4],look:[12,1.2,-9.2],label:'Z2 Vision QC (Chaima) — camera + auditor'},
- z3:{eye:[-11,1.7,12.8],look:[-12.8,1.1,7.2],label:'Z3 Assembly (Ameen) — robot + operator'},
- z4:{eye:[11.2,1.7,4.2],look:[13.2,1.0,9.8],label:'Z4 Diagnosis (Jihed) — cabinet + technician'}};
+ z1:{eye:[-7.8,1.7,-3.0],look:[-12.5,1.0,-8.8],label:'Z1 Warehouse (Naima) — sorting robot + AGV'},
+ z2:{eye:[10.2,1.7,-4.0],look:[12.6,1.1,-9.2],label:'Z2 Vision QC (Chaima) — camera + auditor'},
+ z3:{eye:[-9.8,1.8,10.8],look:[-13,1.1,7.8],label:'Z3 Assembly (Ameen) — robot + operator'},
+ z4:{eye:[10.8,1.7,3.8],look:[13.2,1.0,9.8],label:'Z4 Diagnosis (Jihed) — cabinet + technician'}};
 let tween=null;
 function flyTo(key){
   const v=VIEWS[key]; if(!v) return;
