@@ -42,6 +42,20 @@ M_GLASS    = add_mat("Glass", [0.80,0.94,1.0,0.30], 0.0, 0.12, alpha="BLEND")
 M_WARM     = add_mat("AccentWarm", [1.0,0.75,0.35,1.0], 0.0, 0.4, emissive=[1.0,0.62,0.18])
 M_DARK     = add_mat("ScreenDark", [0.04,0.06,0.09,1.0], 0.2, 0.5, emissive=[0.05,0.12,0.2])
 M_WALL     = add_mat("WallLight", [0.82,0.83,0.85,1.0], 0.0, 0.7)
+# --- v3 detail materials: painted steel, brushed metal, carton, rubber tire,
+# --- lens glass, skin/workwear for humanoids, shelf blue, copper, LCD screen
+M_PAINT  = add_mat("PaintWhite", [0.87,0.88,0.90,1.0], 0.15, 0.35)
+M_STEELL = add_mat("SteelLight", [0.68,0.70,0.73,1.0], 0.95, 0.30)
+M_CARTON = add_mat("Carton", [0.64,0.49,0.31,1.0], 0.0, 0.85)
+M_TAPE   = add_mat("PackTape", [0.80,0.74,0.60,1.0], 0.0, 0.55)
+M_TIRE   = add_mat("Tire", [0.05,0.05,0.06,1.0], 0.0, 0.95)
+M_LENS   = add_mat("LensGlass", [0.30,0.60,0.88,1.0], 0.1, 0.08, emissive=[0.08,0.20,0.35])
+M_SKIN   = add_mat("Skin", [0.84,0.61,0.47,1.0], 0.0, 0.6)
+M_PANTS  = add_mat("WorkPants", [0.15,0.19,0.27,1.0], 0.0, 0.8)
+M_SILVER = add_mat("HiVisStripe", [0.75,0.77,0.78,1.0], 0.6, 0.4)
+M_SHELFB = add_mat("ShelfBlue", [0.10,0.27,0.60,1.0], 0.4, 0.5)
+M_COPPER = add_mat("Copper", [0.55,0.30,0.15,1.0], 1.0, 0.35)
+M_LCD    = add_mat("LCDScreen", [0.45,0.62,0.48,1.0], 0.0, 0.4, emissive=[0.25,0.42,0.25])
 
 # ---------------- primitive geometry (unit, centered) ----------------
 def make_box():
@@ -106,6 +120,169 @@ def make_plane():
 
 GEOMS = {"BOX": make_box(), "CYL12": make_cyl(12), "CYL8": make_cyl(8), "PLANE": make_plane()}
 
+# ---------- v3 detailed geometry (flat-shaded, auto-corrected winding) ----------
+def _norm(v):
+    v = np.array(v, float); n = np.linalg.norm(v)
+    return v / n if n > 1e-9 else v
+
+def _push_poly(P, N, UV, I, pts, n):
+    """pts: 3 or 4 verts. Flips winding so geometric normal matches n."""
+    pts = [np.array(p, float) for p in pts]
+    n = _norm(n)
+    g = np.cross(pts[1] - pts[0], pts[2] - pts[0])
+    if float(np.dot(g, n)) < 0:
+        pts = [pts[0], pts[-1]] + list(reversed(pts[1:-1]))
+    base = len(P)
+    for p in pts:
+        P.append(p); N.append(n)
+    m = len(pts)
+    UV.extend([[0, 0], [1, 0], [1, 1], [0, 1]][:m] if m == 4 else [[0.5, 0.5], [0, 0], [1, 0]])
+    if m == 4:
+        I.extend([base, base + 1, base + 2, base, base + 2, base + 3])
+    else:
+        I.extend([base, base + 1, base + 2])
+
+def _push_poly4n(P, N, UV, I, pts, ns):
+    """quad with per-vert smooth normals; flips winding to match avg normal."""
+    pts = [np.array(p, float) for p in pts]
+    ns = [_norm(n) for n in ns]
+    avg = _norm(sum(ns))
+    g = np.cross(pts[1] - pts[0], pts[2] - pts[0])
+    if float(np.dot(g, avg)) < 0:
+        pts = [pts[0], pts[3], pts[2], pts[1]]
+        ns = [ns[0], ns[3], ns[2], ns[1]]
+    base = len(P)
+    for p, n in zip(pts, ns):
+        P.append(p); N.append(n)
+    UV.extend([[0, 0], [1, 0], [1, 1], [0, 1]])
+    I.extend([base, base + 1, base + 2, base, base + 2, base + 3])
+
+def make_bevelbox(c=0.07):
+    """Unit 1x1x1 box with 45deg chamfered edges (6 faces + 12 bevels + 8 corners)."""
+    P, N, UV, I = [], [], [], []
+    a = 0.5 - c
+    S = 1.0 / math.sqrt(2.0)
+    # faces
+    _push_poly(P, N, UV, I, [(0.5, -a, -a), (0.5, -a, a), (0.5, a, a), (0.5, a, -a)], (1, 0, 0))
+    _push_poly(P, N, UV, I, [(-0.5, -a, a), (-0.5, -a, -a), (-0.5, a, -a), (-0.5, a, a)], (-1, 0, 0))
+    _push_poly(P, N, UV, I, [(-a, 0.5, -a), (-a, 0.5, a), (a, 0.5, a), (a, 0.5, -a)], (0, 1, 0))
+    _push_poly(P, N, UV, I, [(-a, -0.5, a), (-a, -0.5, -a), (a, -0.5, -a), (a, -0.5, a)], (0, -1, 0))
+    _push_poly(P, N, UV, I, [(-a, -a, 0.5), (a, -a, 0.5), (a, a, 0.5), (-a, a, 0.5)], (0, 0, 1))
+    _push_poly(P, N, UV, I, [(a, -a, -0.5), (-a, -a, -0.5), (-a, a, -0.5), (a, a, -0.5)], (0, 0, -1))
+    # 12 edge bevels
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            _push_poly(P, N, UV, I, [(sx * 0.5, sy * a, -a), (sx * 0.5, sy * a, a),
+                                     (sx * a, sy * 0.5, a), (sx * a, sy * 0.5, -a)], (sx * S, sy * S, 0))
+            _push_poly(P, N, UV, I, [(sx * 0.5, -a, sy * a), (sx * 0.5, a, sy * a),
+                                     (sx * a, a, sy * 0.5), (sx * a, -a, sy * 0.5)], (sx * S, 0, sy * S))
+    for sy in (-1, 1):
+        for sz in (-1, 1):
+            _push_poly(P, N, UV, I, [(-a, sy * 0.5, sz * a), (a, sy * 0.5, sz * a),
+                                     (a, sy * a, sz * 0.5), (-a, sy * a, sz * 0.5)], (0, sy * S, sz * S))
+    # 8 corners
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            for sz in (-1, 1):
+                _push_poly(P, N, UV, I, [(sx * 0.5, sy * a, sz * a), (sx * a, sy * 0.5, sz * a),
+                                         (sx * a, sy * a, sz * 0.5)], (sx, sy, sz))
+    return (np.array(P, np.float32), np.array(N, np.float32),
+            np.array(UV, np.float32), np.array(I, np.uint16))
+
+def make_taperbox(top=0.62):
+    """Unit box, top face scaled to `top` (tapered machine links)."""
+    P, N, UV, I = [], [], [], []
+    b, t = 0.5, 0.5 * top
+    s = 1.0 - top  # slope over unit height
+    nX = _norm((1, s, 0)); nZ = _norm((0, s, 1))
+    _push_poly(P, N, UV, I, [(b, -0.5, -b), (b, -0.5, b), (t, 0.5, t), (t, 0.5, -t)], nX)
+    _push_poly(P, N, UV, I, [(-b, -0.5, b), (-b, -0.5, -b), (-t, 0.5, -t), (-t, 0.5, t)], -nX)
+    _push_poly(P, N, UV, I, [(-b, -0.5, b), (b, -0.5, b), (t, 0.5, t), (-t, 0.5, t)], nZ)
+    _push_poly(P, N, UV, I, [(b, -0.5, -b), (-b, -0.5, -b), (-t, 0.5, -t), (t, 0.5, -t)], -nZ)
+    _push_poly(P, N, UV, I, [(-t, 0.5, -t), (-t, 0.5, t), (t, 0.5, t), (t, 0.5, -t)], (0, 1, 0))
+    _push_poly(P, N, UV, I, [(-b, -0.5, b), (-b, -0.5, -b), (b, -0.5, -b), (b, -0.5, b)], (0, -1, 0))
+    return (np.array(P, np.float32), np.array(N, np.float32),
+            np.array(UV, np.float32), np.array(I, np.uint16))
+
+def make_sphere(lon=14, lat=9):
+    P, N, UV, I = [], [], [], []
+    for j in range(lat + 1):
+        th = math.pi * j / lat
+        for i in range(lon + 1):
+            ph = 2 * math.pi * i / lon
+            p = [0.5 * math.sin(th) * math.cos(ph), 0.5 * math.cos(th), 0.5 * math.sin(th) * math.sin(ph)]
+            P.append(p); N.append(_norm(p)); UV.append([i / lon, j / lat])
+    for j in range(lat):
+        for i in range(lon):
+            a = j * (lon + 1) + i; b = a + 1; c = a + lon + 1; d = c + 1
+            I.extend([a, c, b, b, c, d])
+    return (np.array(P, np.float32), np.array(N, np.float32),
+            np.array(UV, np.float32), np.array(I, np.uint16))
+
+def make_gear(teeth=12, thick=0.22):
+    """Unit spur gear: outer r=0.5, root r=0.40, flat shaded."""
+    P, N, UV, I = [], [], [], []
+    Rout, Rroot, h = 0.5, 0.40, thick / 2
+    prof = []
+    for k in range(teeth):
+        a0 = 2 * math.pi * k / teeth
+        for f, r in ((0.00, Rroot), (0.18, Rroot), (0.30, Rout), (0.55, Rout), (0.67, Rroot)):
+            a = a0 + f * 2 * math.pi / teeth
+            prof.append((r * math.cos(a), r * math.sin(a)))
+    n = len(prof)
+    for i in range(n):
+        (x0, z0), (x1, z1) = prof[i], prof[(i + 1) % n]
+        nm = _norm(((x0 + x1) / 2, 0, (z0 + z1) / 2))
+        _push_poly(P, N, UV, I, [(x0, -h, z0), (x1, -h, z1), (x1, h, z1), (x0, h, z0)], nm)
+    top_c = len(P); P.append([0, h, 0]); N.append([0, 1, 0]); UV.append([0.5, 0.5])
+    bot_c = len(P); P.append([0, -h, 0]); N.append([0, -1, 0]); UV.append([0.5, 0.5])
+    top_ring, bot_ring = [], []
+    for (x, z) in prof:
+        top_ring.append(len(P)); P.append([x, h, z]); N.append([0, 1, 0]); UV.append([0.5 + x, 0.5 + z])
+        bot_ring.append(len(P)); P.append([x, -h, z]); N.append([0, -1, 0]); UV.append([0.5 + x, 0.5 + z])
+    for i in range(n):
+        j = (i + 1) % n
+        I.extend([top_c, top_ring[i], top_ring[j]])
+        I.extend([bot_c, bot_ring[j], bot_ring[i]])
+    return (np.array(P, np.float32), np.array(N, np.float32),
+            np.array(UV, np.float32), np.array(I, np.uint16))
+
+def make_tube(points, radius=0.02, radial=7):
+    """Round cable/hose swept along a polyline. points in local units."""
+    pts = [np.array(p, float) for p in points]
+    P, N, UV, I = [], [], [], []
+    up = np.array([0.0, 1.0, 0.0])
+    rings = []
+    for k, p in enumerate(pts):
+        t = _norm(pts[min(k + 1, len(pts) - 1)] - pts[max(k - 1, 0)])
+        side = np.cross(t, up)
+        if np.linalg.norm(side) < 1e-6:
+            side = np.array([1.0, 0.0, 0.0])
+        side = _norm(side); upv = _norm(np.cross(side, t))
+        ring, nr = [], []
+        for i in range(radial):
+            a = 2 * math.pi * i / radial
+            d = side * math.cos(a) + upv * math.sin(a)
+            ring.append(p + radius * d); nr.append(d)
+        rings.append((ring, nr))
+    for k in range(len(pts)):
+        for i in range(radial):
+            P.append(rings[k][0][i]); N.append(rings[k][1][i]); UV.append([i / radial, k / max(1, len(pts) - 1)])
+    for k in range(len(pts) - 1):
+        for i in range(radial):
+            a = k * radial + i; b = k * radial + (i + 1) % radial
+            c = (k + 1) * radial + i; d = (k + 1) * radial + (i + 1) % radial
+            _push_poly4n(P, N, UV, I, [P[a], P[b], P[d], P[c]],
+                         [N[a], N[b], N[d], N[c]])
+    return (np.array(P, np.float32), np.array(N, np.float32),
+            np.array(UV, np.float32), np.array(I, np.uint16))
+
+GEOMS["BBOX"] = make_bevelbox()
+GEOMS["TBOX"] = make_taperbox()
+GEOMS["SPH"] = make_sphere()
+GEOMS["GEAR12"] = make_gear(12)
+GEOMS["GEAR10"] = make_gear(10, thick=0.3)
+
 meshes = []  # list of {name, geom, mat}
 mesh_cache = {}
 def mesh_id(geom, mat, name=None):
@@ -145,6 +322,23 @@ def cyl(parent, name, mat, pos, r_top_dia=None, size=None, rot=None, geom="CYL12
 def plane(parent, name, mat, pos, size):
     # size [w,d]
     return add_node(name, parent, mesh_id("PLANE",mat,f"{name}_m"), t=pos, s=[size[0],1,size[1]])
+def bbox(parent, name, mat, pos, size, rot=None):
+    """Chamfered box — default for visible machine housings."""
+    return add_node(name, parent, mesh_id("BBOX",mat,f"{name}_m"), t=pos, s=size, r=rot)
+def tbox(parent, name, mat, pos, size, rot=None):
+    """Tapered link (bottom full, top 62%) — robot arm segments."""
+    return add_node(name, parent, mesh_id("TBOX",mat,f"{name}_m"), t=pos, s=size, r=rot)
+def sph(parent, name, mat, pos, size, rot=None, geom="SPH"):
+    if isinstance(size, (int, float)): size = [size, size, size]
+    return add_node(name, parent, mesh_id(geom,mat,f"{name}_m"), t=pos, s=size, r=rot)
+def gear(parent, name, mat, pos, dia, thick, rot=None, teeth=12):
+    g = f"GEAR{teeth}"
+    return add_node(name, parent, mesh_id(g,mat,f"{name}_m"), t=pos, s=[dia,thick / 0.22,dia], r=rot)
+def tube(parent, name, mat, points, radius):
+    key = f"TUBE_{name}"
+    if key not in GEOMS:
+        GEOMS[key] = make_tube(points, radius)
+    return add_node(name, parent, mesh_id(key,mat,f"{name}_m"))
 
 # ---------------- hierarchy ----------------
 root = add_node("RoboTeachVR")
@@ -204,59 +398,252 @@ plane(hub,"Pad_South",M_GREEN,[0,0.065,2.8],[1.0,1.0])
 plane(hub,"Pad_West",M_ORANGE,[-2.8,0.065,0],[1.0,1.0])
 plane(hub,"Pad_East",M_RED,[2.8,0.065,0],[1.0,1.0])
 
+# ============ v3 machine builders (nested pivots, chamfered parts) ============
+def robot_arm(parent, name, x, z, ry, paint, dark=M_DSTEEL, scale=1.0, tool_disc=False):
+    """Articulated arm with true joint hierarchy, reaching toward local -Z."""
+    s = scale
+    g = add_node(name, parent, t=[x, 0, z], r=euler_to_quat(0, ry, 0))
+    cyl(g, name+"_Anchor", dark, [0, 0.05, 0], size=[0.62 * s, 0.10 * s, 0.62 * s])
+    for bx, bz in ((-0.24, -0.24), (0.24, -0.24), (-0.24, 0.24), (0.24, 0.24)):
+        sph(g, name+f"_Bolt_{bx}_{bz}", dark, [bx * s, 0.11 * s, bz * s], 0.05 * s)
+    cyl(g, name+"_TurretRing", dark, [0, 0.13 * s, 0], size=[0.48 * s, 0.07 * s, 0.48 * s])
+    cyl(g, name+"_Turret", paint, [0, 0.30 * s, 0], size=[0.44 * s, 0.28 * s, 0.44 * s])
+    sph(g, name+"_TurretCapL", paint, [-0.20 * s, 0.36 * s, 0], 0.13 * s)
+    sph(g, name+"_TurretCapR", paint, [0.20 * s, 0.36 * s, 0], 0.13 * s)
+    j1 = add_node(name+"_J1_Waist", g, t=[0, 0.44 * s, 0], r=euler_to_quat(0, 18, 0))
+    bbox(j1, name+"_ShoulderBlock", paint, [0, 0.10 * s, 0], [0.34 * s, 0.30 * s, 0.30 * s])
+    cyl(j1, name+"_ShoulderAxle", dark, [0, 0.16 * s, 0], size=[0.20 * s, 0.40 * s, 0.20 * s],
+        rot=euler_to_quat(0, 0, 90))
+    sph(j1, name+"_ShoulderCapL", paint, [-0.20 * s, 0.16 * s, 0], 0.12 * s)
+    sph(j1, name+"_ShoulderCapR", paint, [0.20 * s, 0.16 * s, 0], 0.12 * s)
+    j2 = add_node(name+"_J2_Shoulder", j1, t=[0, 0.20 * s, 0], r=euler_to_quat(-28, 0, 0))
+    tbox(j2, name+"_UpperArm", paint, [0, 0.42 * s, 0], [0.26 * s, 0.85 * s, 0.22 * s])
+    bbox(j2, name+"_UpperArmCollar", dark, [0, 0.06 * s, 0], [0.28 * s, 0.10 * s, 0.24 * s])
+    sph(j2, name+"_ElbowCapL", paint, [-0.11 * s, 0.85 * s, 0], 0.11 * s)
+    sph(j2, name+"_ElbowCapR", paint, [0.11 * s, 0.85 * s, 0], 0.11 * s)
+    j3 = add_node(name+"_J3_Elbow", j2, t=[0, 0.85 * s, 0], r=euler_to_quat(55, 0, 0))
+    cyl(j3, name+"_ElbowAxle", dark, [0, 0, 0], size=[0.16 * s, 0.24 * s, 0.16 * s],
+        rot=euler_to_quat(0, 0, 90))
+    tbox(j3, name+"_Forearm", paint, [0, 0.36 * s, 0], [0.18 * s, 0.75 * s, 0.16 * s])
+    bbox(j3, name+"_ForearmCollar", dark, [0, 0.10 * s, 0], [0.20 * s, 0.08 * s, 0.18 * s])
+    j4 = add_node(name+"_J4_Wrist", j3, t=[0, 0.74 * s, 0], r=euler_to_quat(-32, 0, 0))
+    cyl(j4, name+"_WristBody", dark, [0, 0.09 * s, 0], size=[0.14 * s, 0.20 * s, 0.14 * s])
+    cyl(j4, name+"_Flange", M_STEELL, [0, 0.21 * s, 0], size=[0.17 * s, 0.05 * s, 0.17 * s])
+    for k, fa in enumerate((45, 135, 225, 315)):
+        fr = math.radians(fa)
+        cyl(j4, name+f"_FlangeBolt{k}", dark,
+            [0.06 * s * math.cos(fr), 0.235 * s, 0.06 * s * math.sin(fr)],
+            size=[0.025 * s, 0.03 * s, 0.025 * s], geom="CYL8")
+    if tool_disc:
+        cyl(j4, name+"_ToolChanger", M_ASTEEL, [0, 0.27 * s, 0], size=[0.19 * s, 0.07 * s, 0.19 * s])
+        y0 = 0.32 * s
+    else:
+        y0 = 0.25 * s
+    bbox(j4, name+"_Palm", dark, [0, y0 + 0.05 * s, 0], [0.17 * s, 0.10 * s, 0.11 * s])
+    for sx in (-1, 1):
+        fg = add_node(name+f"_Finger_{'L' if sx < 0 else 'R'}", j4,
+                      t=[sx * 0.070 * s, y0 + 0.10 * s, 0], r=euler_to_quat(0, 0, sx * -7))
+        bbox(fg, name+f"_Phalanx_{sx}", M_ASTEEL, [0, 0.09 * s, 0], [0.045 * s, 0.18 * s, 0.07 * s])
+        bbox(fg, name+f"_TipPad_{sx}", M_RUBBER, [sx * -0.008 * s, 0.16 * s, -0.035 * s],
+             [0.02 * s, 0.12 * s, 0.03 * s], rot=euler_to_quat(18, 0, 0))
+    return g
+
+def motor_unit(parent, name, x, y, z, dia=0.34, length=0.5, ry=0, mount=True):
+    """Finned TEFC motor: feet, stator + cooling fins, fan cowl, terminal box, shaft."""
+    g = add_node(name, parent, t=[x, y, z], r=euler_to_quat(0, ry, 0))
+    if mount:
+        box(g, name+"_RailL", M_DSTEEL, [-0.10, -dia * 0.42, 0], [0.08, 0.10, length * 1.1])
+        box(g, name+"_RailR", M_DSTEEL, [0.10, -dia * 0.42, 0], [0.08, 0.10, length * 1.1])
+    box(g, name+"_FootL", M_DSTEEL, [-dia * 0.32, -dia * 0.30, 0], [0.07, 0.12, length * 0.7])
+    box(g, name+"_FootR", M_DSTEEL, [dia * 0.32, -dia * 0.30, 0], [0.07, 0.12, length * 0.7])
+    cyl(g, name+"_Stator", M_ORANGE, [0, 0, 0], size=[dia, length, dia],
+        rot=euler_to_quat(90, 0, 0))
+    for k in range(6):
+        a = math.pi * k / 6
+        fin = add_node(name+f"_Fin{k}", g, t=[dia * 0.48 * math.cos(a), 0, dia * 0.48 * math.sin(a)],
+                       r=euler_to_quat(0, -math.degrees(a), 0))
+        box(fin, name+f"_FinB{k}", M_ORANGE, [0, 0, 0], [0.025, length * 0.9, 0.06])
+    cyl(g, name+"_FanCowl", M_DSTEEL, [0, 0, length * 0.58], size=[dia * 0.96, length * 0.22, dia * 0.96],
+        rot=euler_to_quat(90, 0, 0))
+    cyl(g, name+"_DriveEnd", M_DSTEEL, [0, 0, -length * 0.55], size=[dia * 0.8, length * 0.14, dia * 0.8],
+        rot=euler_to_quat(90, 0, 0))
+    cyl(g, name+"_Shaft", M_STEELL, [0, 0, -length * 0.72], size=[dia * 0.28, length * 0.24, dia * 0.28],
+        rot=euler_to_quat(90, 0, 0))
+    bbox(g, name+"_TerminalBox", M_DSTEEL, [0, dia * 0.58, length * 0.05], [0.20, 0.14, 0.24])
+    return g
+
+def conveyor_line(parent, prefix, cx, cz, length, belt_y=0.90, frame_mat=M_DSTEEL,
+                  belt_mat=M_RUBBER, rail=True, motor=True):
+    """Roller/belt conveyor: channels, legs+feet, rollers, drums, rails, drive, photoeyes."""
+    g = add_node(prefix, parent, t=[cx, 0, cz])
+    for sz in (-1, 1):
+        bbox(g, prefix+"_Channel", frame_mat, [0, belt_y - 0.13, sz * 0.46], [length, 0.24, 0.10])
+    for i in (-1, 0, 1):
+        box(g, prefix+f"_Cross{i}", frame_mat, [i * length * 0.32, belt_y - 0.22, 0], [0.10, 0.08, 0.86])
+    nlegs = max(2, int(length / 1.6) + 1)
+    for i in range(nlegs):
+        lx = -length / 2 + 0.25 + i * (length - 0.5) / max(1, nlegs - 1)
+        for sz in (-1, 1):
+            box(g, prefix+f"_Leg{i}{sz}", frame_mat, [lx, (belt_y - 0.25) / 2, sz * 0.40],
+                [0.10, belt_y - 0.25, 0.10])
+            box(g, prefix+f"_Foot{i}{sz}", frame_mat, [lx, 0.02, sz * 0.40], [0.26, 0.04, 0.26])
+            cyl(g, prefix+f"_Pad{i}{sz}", M_RUBBER, [lx, 0.055, sz * 0.40],
+                size=[0.09, 0.035, 0.09], geom="CYL8")
+    nroll = int(length / 0.42)
+    for i in range(nroll):
+        lx = -length / 2 + 0.25 + i * 0.42
+        cyl(g, prefix+f"_Roller{i}", M_STEELL, [lx, belt_y - 0.015, 0],
+            size=[0.09, 0.86, 0.09], rot=euler_to_quat(90, 0, 0))
+    for ex in (-1, 1):
+        cyl(g, prefix+f"_Drum{ex}", M_DSTEEL, [ex * (length / 2 - 0.08), belt_y - 0.01, 0],
+            size=[0.14, 0.88, 0.14], rot=euler_to_quat(90, 0, 0))
+    box(g, prefix+"_Belt", belt_mat, [0, belt_y + 0.035, 0], [length - 0.1, 0.035, 0.84])
+    if rail:
+        for sz in (-1, 1):
+            box(g, prefix+f"_Rail{sz}", M_STEELL, [0, belt_y + 0.30, sz * 0.52], [length - 0.4, 0.045, 0.045])
+            for px in (-length / 2 + 0.6, 0, length / 2 - 0.6):
+                box(g, prefix+f"_RailPost{sz}{px}", M_DSTEEL, [px, belt_y + 0.16, sz * 0.52],
+                    [0.05, 0.24, 0.05])
+    if motor:
+        mu = motor_unit(g, prefix+"_Drive", length / 2 - 0.55, belt_y - 0.42, 0.0,
+                        dia=0.26, length=0.42, ry=90)
+        bbox(g, prefix+"_Gearbox", M_PAINT, [length / 2 - 0.55, belt_y - 0.18, 0.0], [0.30, 0.24, 0.24])
+    for ex, px in (("W", -length / 2 + 0.9), ("E", length / 2 - 0.9)):
+        box(g, prefix+f"_EyePost{ex}", M_DSTEEL, [px, belt_y + 0.28, -0.52], [0.06, 0.5, 0.06])
+        bbox(g, prefix+f"_EyeHead{ex}", M_DSTEEL, [px, belt_y + 0.52, -0.48], [0.10, 0.09, 0.14])
+        sph(g, prefix+f"_EyeLens{ex}", M_RED, [px, belt_y + 0.52, -0.40], 0.035)
+    return g
+
+def carton(parent, name, mat, x, y, z, s=0.4, ry=0):
+    g = add_node(name, parent, t=[x, y, z], r=euler_to_quat(0, ry, 0))
+    bbox(g, name+"_Body", mat, [0, 0, 0], [s, s * 0.75, s])
+    box(g, name+"_Tape", M_TAPE, [0, s * 0.375 + 0.004, 0], [s * 1.002, 0.012, s * 0.22])
+    plane(g, name+"_Label", M_WHITE, [s * 0.1, 0, s * 0.5 + 0.002], [s * 0.4, s * 0.3])
+    nodes[-1]["rotation"] = euler_to_quat(90, 0, 0)
+    return g
+
+def pallet_stack(parent, name, x, z, ry=0, cartons=0, cmat=M_CARTON):
+    g = add_node(name, parent, t=[x, 0, z], r=euler_to_quat(0, ry, 0))
+    for sz in (-0.45, 0, 0.45):
+        box(g, name+"_Stringer", M_WOOD, [0, 0.10, sz], [1.2, 0.09, 0.12])
+    for i in range(5):
+        box(g, name+f"_Slat{i}", M_WOOD, [-0.5 + i * 0.25, 0.175, 0], [0.20, 0.035, 1.1])
+    for i, cm in enumerate(cartons if isinstance(cartons, list) else [cmat] * cartons):
+        carton(g, name+f"_Box{i}", cm, -0.25 + 0.5 * (i % 2), 0.19 + 0.38 + 0.36 * (i // 2), 0,
+               s=0.48, ry=5 * i)
+    return g
+
+def shelving(parent, name, x, z, ry=0, w=2.1, h=1.8, d=0.6, levels=(0.4, 1.0, 1.6)):
+    g = add_node(name, parent, t=[x, 0, z], r=euler_to_quat(0, ry, 0))
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            box(g, name+"_Upright", M_SHELFB, [sx * (w / 2 - 0.05), h / 2, sz * (d / 2 - 0.05)],
+                [0.10, h, 0.10])
+            box(g, name+"_FootPl", M_SHELFB, [sx * (w / 2 - 0.05), 0.02, sz * (d / 2 - 0.05)],
+                [0.22, 0.04, 0.22])
+    for lv in levels:
+        for sz in (-1, 1):
+            box(g, name+f"_Beam{lv}{sz}", M_ORANGE, [0, lv, sz * (d / 2 - 0.05)], [w, 0.12, 0.08])
+        box(g, name+f"_Deck{lv}", M_STEELL, [0, lv - 0.075, 0], [w - 0.1, 0.03, d - 0.1])
+    for k, s in enumerate((1, -1)):
+        brace = add_node(name+f"_Brace{k}", g, t=[0, h / 2, -s * (d / 2 - 0.02)],
+                         r=euler_to_quat(0, 0, s * 38))
+        box(brace, name+f"_BraceB{k}", M_SHELFB, [0, 0, 0], [0.07, h * 1.05, 0.05])
+    return g
+
+def humanoid(parent, name, x, z, ry, vest, helmet):
+    """Recognizable worker: boots, legs, hi-vis torso+stripes, arms, head+hard hat."""
+    g = add_node(name, parent, t=[x, 0, z], r=euler_to_quat(0, ry, 0))
+    for sx in (-1, 1):
+        bbox(g, name+f"_Boot{sx}", M_TIRE, [sx * 0.11, 0.06, 0.02], [0.13, 0.12, 0.26])
+        cyl(g, name+f"_Leg{sx}", M_PANTS, [sx * 0.11, 0.45, 0], size=[0.14, 0.66, 0.14])
+        ag = add_node(name+f"_Arm{sx}", g, t=[sx * 0.26, 1.32, 0], r=euler_to_quat(6, 0, sx * -4))
+        cyl(ag, name+f"_Sleeve{sx}", vest, [0, -0.16, 0], size=[0.11, 0.32, 0.11])
+        cyl(ag, name+f"_Forearm{sx}", M_SKIN, [0, -0.44, 0.01], size=[0.09, 0.28, 0.09])
+        sph(ag, name+f"_Hand{sx}", M_SKIN, [0, -0.62, 0.02], 0.10)
+    bbox(g, name+"_Hips", M_PANTS, [0, 0.85, 0], [0.34, 0.18, 0.22])
+    bbox(g, name+"_Torso", vest, [0, 1.15, 0], [0.40, 0.48, 0.25])
+    box(g, name+"_StripeF", M_SILVER, [0, 1.18, 0.13], [0.41, 0.07, 0.012])
+    box(g, name+"_StripeB", M_SILVER, [0, 1.18, -0.13], [0.41, 0.07, 0.012])
+    sph(g, name+"_Head", M_SKIN, [0, 1.55, 0.01], 0.24)
+    sph(g, name+"_Helmet", helmet, [0, 1.63, 0.0], [0.27, 0.17, 0.27])
+    cyl(g, name+"_Brim", helmet, [0, 1.585, 0.0], size=[0.32, 0.03, 0.32])
+    return g
+
 # ===== Zone 1: Warehouse (-12,-8) =====
 # zone floor border
 for (ox,oz,w,d) in [(-12,-13.5,14,0.15),(-12,-2.5,14,0.15),(-19,-8,0.15,11),(-5,-8,0.15,11)]:
     plane(z1,f"Border_{ox}_{oz}",M_YELLOW,[ox,0.012,oz],[w,d])
-# conveyor line 6m along X at (-12,0,-9)
-box(z1,"ConvFrame",M_DSTEEL,[-12,0.75,-9],[6.0,0.25,1.0])
-box(z1,"ConvBelt",M_RUBBER,[-12,0.90,-9],[6.0,0.06,0.9])
-for i,lx in enumerate([-14.5,-13.5,-12.5,-11.5,-10.5,-9.5]):
-    cyl(z1,f"Roller_{i}",M_ASTEEL,[lx,0.88,-9],size=[0.12,0.9,0.12],rot=euler_to_quat(90,0,0),geom="CYL12")
-for lx,lz in [(-14.8,-9.4),(-14.8,-8.6),(-9.2,-9.4),(-9.2,-8.6)]:
-    box(z1,f"ConvLeg_{lx}_{lz}",M_DSTEEL,[lx,0.35,lz],[0.12,0.7,0.12])
-# feeder hopper at west end
-box(z1,"FeederHopper",M_ASTEEL,[-15.4,1.2,-9],[0.8,0.8,1.2])
-box(z1,"FeederChute",M_DSTEEL,[-14.9,0.95,-9],[0.6,0.15,0.8])
-# parcels on belt (mixed)
-box(z1,"Parcel_1",M_BLUE,[-13.8,1.08,-9],[0.4,0.3,0.4])
-box(z1,"Parcel_2",M_WOOD,[-13.0,1.05,-9.1],[0.35,0.25,0.35])
-box(z1,"Parcel_3",M_GREEN,[-12.2,1.10,-8.9],[0.45,0.35,0.4])
-box(z1,"Parcel_4",M_WHITE,[-11.3,1.03,-9],[0.3,0.2,0.3])
-box(z1,"Parcel_5",M_RED,[-10.4,1.07,-9.05],[0.38,0.28,0.38])
-# robot arm beside conveyor (south side)
-cyl(z1,"RobotBase",M_DSTEEL,[-12,0.2,-6.2],size=[0.6,0.4,0.6])
-box(z1,"RobotColumn",M_ORANGE,[-12,0.85,-6.2],[0.35,0.9,0.35])
-box(z1,"RobotUpperArm",M_ORANGE,[-12,1.45,-6.7],[0.25,0.25,1.4],rot=euler_to_quat(20,0,0))
-box(z1,"RobotForearm",M_ASTEEL,[-12,1.7,-7.6],[0.18,0.18,1.0],rot=euler_to_quat(-30,0,0))
-box(z1,"RobotWrist",M_DSTEEL,[-12,1.45,-8.2],[0.2,0.2,0.25])
-box(z1,"Gripper_L",M_DSTEEL,[-12.1,1.3,-8.4],[0.06,0.25,0.12])
-box(z1,"Gripper_R",M_DSTEEL,[-11.9,1.3,-8.4],[0.06,0.25,0.12])
-cyl(z1,"Joint_Shoulder",M_DSTEEL,[-12,1.3,-6.2],size=[0.4,0.3,0.4],rot=euler_to_quat(90,0,0))
+# conveyor line 6m along X at (-12,0,-9): channels, legs, rollers, rails, drive
+conveyor_line(z1, "ConvLine", -12, -9, 6.0, belt_y=0.90)
+# feeder hopper at west end: rim + slanted throat + legs + outlet chute
+fh = add_node("FeederHopper", z1, t=[-15.4, 0, -9])
+box(fh, "FeederHopper_RimN", M_ASTEEL, [0, 1.62, -0.55], [1.0, 0.08, 0.08])
+box(fh, "FeederHopper_RimS", M_ASTEEL, [0, 1.62, 0.55], [1.0, 0.08, 0.08])
+box(fh, "FeederHopper_RimW", M_ASTEEL, [-0.5, 1.62, 0], [0.08, 0.08, 1.1])
+box(fh, "FeederHopper_RimE", M_ASTEEL, [0.5, 1.62, 0], [0.08, 0.08, 1.1])
+for sx, sz, rx, rz in ((0, -1, -22, 0), (0, 1, 22, 0), (-1, 0, 0, 22), (1, 0, 0, -22)):
+    bbox(fh, f"FeederHopper_Panel{sx}{sz}", M_PAINT, [sx * 0.28, 1.15, sz * 0.28],
+         [0.85 if sx == 0 else 0.06, 0.75, 0.85 if sz == 0 else 0.06],
+         rot=euler_to_quat(rx, 0, rz))
+bbox(fh, "FeederHopper_Throat", M_DSTEEL, [0, 0.72, 0], [0.4, 0.25, 0.4])
+for lx, lz in ((-0.4, -0.4), (0.4, -0.4), (-0.4, 0.4), (0.4, 0.4)):
+    box(fh, f"FeederHopper_Leg{lx}{lz}", M_DSTEEL, [lx, 0.35, lz], [0.09, 0.7, 0.09])
+box(fh, "FeederHopper_Chute", M_DSTEEL, [0.55, 0.95, 0], [0.6, 0.12, 0.7])
+# parcels on belt (taped cartons, mixed sizes)
+carton(z1, "Parcel_1", M_CARTON, -13.8, 1.12, -9.0, s=0.42, ry=4)
+carton(z1, "Parcel_2", M_BLUE, -13.0, 1.09, -9.1, s=0.36, ry=-6)
+carton(z1, "Parcel_3", M_CARTON, -12.2, 1.14, -8.9, s=0.46, ry=9)
+carton(z1, "Parcel_4", M_WHITE, -11.3, 1.06, -9.0, s=0.32, ry=-3)
+carton(z1, "Parcel_5", M_RED, -10.4, 1.10, -9.05, s=0.40, ry=7)
+# articulated sorting arm south of conveyor, reaching toward the belt
+robot_arm(z1, "SortArm", -12, -7.3, 0, M_ORANGE, scale=1.1)
 # sorting bins
 def open_bin(parent,name,mat,x,z,label=None):
-    box(parent,f"{name}_Bottom",mat,[x,0.15,z],[0.9,0.1,0.7])
-    box(parent,f"{name}_W1",mat,[x,0.45,z-0.32],[0.9,0.6,0.06])
-    box(parent,f"{name}_W2",mat,[x,0.45,z+0.32],[0.9,0.6,0.06])
-    box(parent,f"{name}_W3",mat,[x-0.42,0.45,z],[0.06,0.6,0.7])
-    box(parent,f"{name}_W4",mat,[x+0.42,0.45,z],[0.06,0.6,0.7])
+    g = add_node(name, parent, t=[x,0,z])
+    bbox(g,f"{name}_Bottom",mat,[0,0.18,0],[0.9,0.10,0.7])
+    bbox(g,f"{name}_W1",mat,[0,0.48,-0.32],[0.9,0.62,0.06])
+    bbox(g,f"{name}_W2",mat,[0,0.48,0.32],[0.9,0.62,0.06])
+    bbox(g,f"{name}_W3",mat,[-0.42,0.48,0],[0.06,0.62,0.7])
+    bbox(g,f"{name}_W4",mat,[0.42,0.48,0],[0.06,0.62,0.7])
+    box(g,f"{name}_Rim",M_DSTEEL,[0,0.80,0],[0.96,0.05,0.76])
+    plane(g,f"{name}_Label",M_WHITE,[0,0.5,0.36],[0.4,0.25])
+    nodes[-1]["rotation"] = euler_to_quat(90,0,0)
+    for cx,cz in ((-0.36,-0.26),(0.36,-0.26),(-0.36,0.26),(0.36,0.26)):
+        cyl(g,f"{name}_Caster{cx}{cz}",M_TIRE,[cx,0.06,cz],size=[0.11,0.09,0.11],geom="CYL8")
 open_bin(z1,"BinA",M_BLUE,-10.5,-5.5)
 open_bin(z1,"BinB",M_GREEN,-12.0,-5.5)
 open_bin(z1,"BinFull",M_RED,-13.5,-5.5)
 box(z1,"BinFull_Lid",M_DSTEEL,[-13.5,0.78,-5.5],[0.95,0.06,0.75])
-# AGV
-box(z1,"AGV_Base",M_ORANGE,[-8.5,0.18,-6.0],[1.2,0.25,0.8])
-box(z1,"AGV_Top",M_DSTEEL,[-8.5,0.36,-6.0],[0.9,0.12,0.6])
-cyl(z1,"AGV_Lidar",M_DARK,[-8.5,0.55,-6.0],size=[0.15,0.2,0.15])
-box(z1,"AGV_Parcel",M_WOOD,[-8.5,0.58,-6.0],[0.5,0.3,0.5])
-for wx,wz in [(-8.9,-6.35),(-8.1,-6.35),(-8.9,-5.65),(-8.1,-5.65)]:
-    cyl(z1,f"AGV_Wheel_{wx}_{wz}",M_RUBBER,[wx,0.1,wz],size=[0.2,0.12,0.2],rot=euler_to_quat(90,0,0))
+# AGV: chassis + striped bumper, deck, wheels, lidar, e-stop, lamp stack
+ag = add_node("AGV", z1, t=[-8.5, 0, -6.0])
+bbox(ag, "AGV_Chassis", M_DSTEEL, [0, 0.24, 0], [1.2, 0.16, 0.8])
+bbox(ag, "AGV_Bumper", M_YELLOW, [0, 0.17, -0.44], [1.24, 0.12, 0.10])
+for i, bx in enumerate((-0.4, -0.13, 0.13, 0.4)):
+    box(ag, f"AGV_Stripe{i}", M_TIRE, [bx, 0.17, -0.495], [0.13, 0.12, 0.012])
+bbox(ag, "AGV_Deck", M_STEELL, [0, 0.35, 0.02], [1.0, 0.06, 0.7])
+for wx, wz in ((-0.42, -0.30), (0.42, -0.30), (-0.42, 0.30), (0.42, 0.30)):
+    cyl(ag, f"AGV_Wheel{wx}{wz}", M_TIRE, [wx, 0.11, wz], size=[0.22, 0.09, 0.22],
+        rot=euler_to_quat(90, 0, 0))
+    cyl(ag, f"AGV_Hub{wx}{wz}", M_STEELL, [wx, 0.11, wz], size=[0.10, 0.10, 0.10],
+        rot=euler_to_quat(90, 0, 0))
+sph(ag, "AGV_CasterF", M_DSTEEL, [0, 0.06, -0.36], 0.09)
+sph(ag, "AGV_CasterR", M_DSTEEL, [0, 0.06, 0.36], 0.09)
+cyl(ag, "AGV_LidarMast", M_DSTEEL, [-0.35, 0.50, 0.25], size=[0.07, 0.24, 0.07])
+cyl(ag, "AGV_Lidar", M_DSTEEL, [-0.35, 0.65, 0.25], size=[0.16, 0.12, 0.16])
+cyl(ag, "AGV_LidarBand", M_LENS, [-0.35, 0.65, 0.25], size=[0.165, 0.045, 0.165])
+cyl(ag, "AGV_EstopBase", M_YELLOW, [0.35, 0.40, 0.25], size=[0.07, 0.04, 0.07])
+sph(ag, "AGV_Estop", M_RED, [0.35, 0.44, 0.25], 0.055)
+cyl(ag, "AGV_LampPole", M_DSTEEL, [0.45, 0.55, -0.30], size=[0.04, 0.40, 0.04])
+cyl(ag, "AGV_LampR", M_RED, [0.45, 0.78, -0.30], size=[0.09, 0.09, 0.09])
+cyl(ag, "AGV_LampG", M_GREEN, [0.45, 0.68, -0.30], size=[0.09, 0.09, 0.09])
+bbox(ag, "AGV_Scanner", M_DSTEEL, [0, 0.13, -0.50], [0.5, 0.07, 0.08])
+box(ag, "AGV_ScanLens", M_LENS, [0, 0.13, -0.545], [0.44, 0.04, 0.012])
+carton(ag, "AGV_Parcel", M_CARTON, 0.05, 0.60, -0.02, s=0.5, ry=-4)
 # aisle + stray pallet blocking path to dock
 plane(z1,"AisleLine_1",M_YELLOW,[-16.5,0.012,-4.0],[0.15,6.0])
 plane(z1,"AisleLine_2",M_YELLOW,[-14.5,0.012,-4.0],[0.15,6.0])
-box(z1,"StrayPallet",M_WOOD,[-15.5,0.07,-4.0],[1.2,0.14,1.0])
-box(z1,"StrayBox_1",M_BLUE,[-15.5,0.35,-4.0],[0.6,0.4,0.6])
-box(z1,"StrayBox_2",M_RED,[-15.5,0.70,-4.1],[0.45,0.3,0.45])
+pallet_stack(z1, "StrayPallet", -15.5, -4.0, ry=3, cartons=[M_BLUE, M_RED])
 box(z1,"DockPlatform",M_CONCRETE,[-19.0,0.15,0],[2.0,0.3,8.0])
 box(z1,"DockBumper_1",M_RUBBER,[-18.0,0.3,-3.0],[0.2,0.4,0.6])
 box(z1,"DockBumper_2",M_RUBBER,[-18.0,0.3,3.0],[0.2,0.4,0.6])
@@ -417,6 +804,9 @@ def waypoint(parent, name, x, z):
 def spawn_pt(parent, name, x, y, z):
     return add_node(name, parent, t=[x,y,z])
 
+def spawn_pt(parent, name, x, y, z):
+    return add_node(name, parent, t=[x,y,z])
+
 def control_post(parent, prefix, x, z, ry=0):
     g = add_node(prefix+"_ControlPost", parent, t=[x,0,z], r=euler_to_quat(0,ry,0))
     box(g, prefix+"_Desk", M_BEIGE, [0,0.75,0], [1.4,0.08,0.7])
@@ -457,7 +847,7 @@ cyl(bld, "Barrel_G", M_GREEN, [-3.7,0.45,12.5], size=[0.6,0.9,0.6])
 # ---- Z1 details (Naima: maquette Convoyeur/Bras/BacA/BacB/BacPlein/PosteControle/Palette/AGV/Quai) ----
 control_post(z1, "Z1", -9.0, -4.2, ry=-25)
 ao_skirt(z1, "AO_Conv", -12, -9, 6.2, 1.2)
-ao_skirt(z1, "AO_Robot", -12, -6.2, 1.0, 1.0)
+ao_skirt(z1, "AO_Robot", -12, -7.3, 1.2, 1.2)
 box(z1, "ConvTrim_Y1", M_YELLOW, [-12,0.9,-9.48], [6.0,0.05,0.06])
 box(z1, "ConvTrim_Y2", M_YELLOW, [-12,0.9,-8.52], [6.0,0.05,0.06])
 spawn_pt(z1, "Spawn_Colis", -15.4, 1.6, -9)
